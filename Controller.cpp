@@ -1,6 +1,3 @@
-#include<iostream>
-#include<string>
-#include<fstream>
 #include<tuple>
 #include<Eigen/Dense>
 #include <casadi/casadi.hpp>
@@ -105,8 +102,8 @@ void MPC::initCasADiSolver()
 		int x_idx = k * ((int)n + (int)m);
 		int u_idx = x_idx + (int)n;
 
-		casadi::MX Xk  = W(casadi::Slice(x_idx,              x_idx + (int)n));
-		casadi::MX Uk  = W(casadi::Slice(u_idx,              u_idx + (int)m));
+		casadi::MX Xk  = W(casadi::Slice(x_idx, x_idx + (int)n));
+		casadi::MX Uk  = W(casadi::Slice(u_idx, u_idx + (int)m));
 		casadi::MX Xk1 = W(casadi::Slice(x_idx + (int)(n+m), x_idx + (int)(n+m) + (int)n));
 
 		casadi::MX x_ref = P_param(casadi::Slice((int)n + k*(int)n, (int)n + (k+1)*(int)n));
@@ -165,64 +162,6 @@ void MPC::initCasADiSolver()
 	solver_initialized = true;
 }
 
-// void MPC::setObservabilityMatrix(const MatrixXd& A_k)
-// {
-//     O.resize(f*r, n);
-//     O.setZero();
-//
-//     MatrixXd _temp = MatrixXd::Identity(n, n);
-//     for (int i = 0; i < f; i++)
-//     {
-//         _temp = _temp * A_k;
-//         O(seq(i*r, (i+1)*r-1), all) = C * _temp;
-//     }
-// }
-//
-// void MPC::setToeplitzMatrix(const MatrixXd& A_k, const MatrixXd& B_k)
-// {
-//     M.resize(f*r, v*m);
-//     M.setZero();
-//     MatrixXd _temp;
-//
-//     for (int i = 0; i < f; i++)
-//     {
-//         if (i < v)
-//         {
-//             for (int j = 0; j < i+1; j++)
-//             {
-//                 if (j == 0)
-//                     _temp = MatrixXd::Identity(n, n);
-//                 else
-//                     _temp = _temp * A_k;
-//
-//                 M(seq(i*r,(i+1)*r-1), seq((i-j)*m,(i-j+1)*m-1)) = C * _temp * B_k;
-//             }
-//         }
-//         else
-//         {
-//             for (int j = 0; j < v; j++)
-//             {
-//                 if (j == 0)
-//                 {
-//                     MatrixXd sumLast = MatrixXd::Zero(n, n);
-//                     _temp = MatrixXd::Identity(n, n);
-//                     for (int s = 0; s <= i; s++)
-//                     {
-//                         sumLast = sumLast + _temp;
-//                         _temp = _temp * A_k;
-//                     }
-//                     M(seq(i*r,(i+1)*r-1), seq((v-1)*m, v*m-1)) = C * sumLast * B_k;
-//                 }
-//                 else
-//                 {
-//                     _temp = _temp * A_k;
-//                     M(seq(i*r,(i+1)*r-1), seq((v-1-j)*m,(v-j)*m-1)) = C * _temp * B_k;
-//                 }
-//             }
-//         }
-//     }
-// }
-
 std::tuple<MatrixXd,MatrixXd> MPC::getWeightMatrices(tuple<double, double, double> weights)
 {
     // wt1: finite difference matrix for control smoothness
@@ -249,27 +188,6 @@ std::tuple<MatrixXd,MatrixXd> MPC::getWeightMatrices(tuple<double, double, doubl
 
     return std::make_tuple(W3, W4);
 }
-
-// std::tuple<MatrixXd,MatrixXd> MPC::linearizeModel(const VectorXd& x_bar, const VectorXd& u_bar) const
-// {
-//     double eps = 1e-5;
-//     MatrixXd A_lin(n, n), B_lin(n, m);
-//     VectorXd f0 = nonlinearDynamics(x_bar, u_bar);
-//
-//     for (int i = 0; i < n; i++) {
-//         VectorXd x_pert = x_bar;
-//         x_pert(i) += eps;
-//         A_lin.col(i) = (nonlinearDynamics(x_pert, u_bar) - f0) / eps;
-//     }
-//
-//     for (int i = 0; i < m; i++) {
-//         VectorXd u_pert = u_bar;
-//         u_pert(i) += eps;
-//         B_lin.col(i) = (nonlinearDynamics(x_bar, u_pert) - f0) / eps;
-//     }
-//
-//     return {A_lin, B_lin};
-// }
 
 VectorXd MPC::computeControlInputs(VectorXd x_k)
 {

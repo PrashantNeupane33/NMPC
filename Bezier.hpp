@@ -116,12 +116,5 @@ MatrixXd getTrajectory(unsigned int timeSteps, double sampling)
 		traj(i, 1) = pos.second;
 		traj(i, 2) = atan2(der.second, der.first);
 	}
-	// Unwrap theta
-	// for(int i = 1; i < timeSteps; i++)
-	// {
-	// 	double diff = traj(i,2) - traj(i-1,2);
-	// 	if      (diff >  M_PI) traj(i,2) -= 2*M_PI;
-	// 	else if (diff < -M_PI) traj(i,2) += 2*M_PI;
-	// }
 	return traj;
 }

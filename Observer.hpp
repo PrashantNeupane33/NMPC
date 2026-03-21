@@ -16,10 +16,10 @@ class EKF {
 
         MatrixXd C; // measurement matrix
 
-        VectorXd x_est;  // current state estimate
-        MatrixXd P;      // state covariance
-        MatrixXd Q;      // process noise covariance
-        MatrixXd R;// measurement noise covariance
+        VectorXd x_est; // current state estimate
+        MatrixXd P; // state covariance
+        MatrixXd Q; // process noise covariance
+        MatrixXd R; // measurement noise covariance
 	
 		std::default_random_engine gen;
 		std::normal_distribution<double> xy_noise;
