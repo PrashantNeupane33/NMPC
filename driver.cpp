@@ -18,22 +18,22 @@ void writeToCSV(const std::string& filename, const MatrixXd& matrix){
 
 int main()
 {
-	unsigned int f = 20;
-	unsigned int v = 16;
+	unsigned int f = 40;
+	unsigned int v = 20;
 	double sampling = 0.05;
 
 	MatrixXd C = MatrixXd::Identity(3, 3);
 
 	VectorXd x0(3);
-	x0 << 0,0,0;
+	x0 << 0,0,-0.2;
 
 	VectorXd u_min(3), u_max(3);
-	u_min << -1.5, -1.5, -3.5;
-	u_max <<  1.5,  1.5,  3.5;
+	u_min << -1.2, -1.2, -3.0;
+	u_max <<  1.2,  1.2,  3.0;
 
-	double trackingWeight  = 100.0;
-	double controlWeight   = 10;
-	double omegaWeight     = 0.5;
+	double trackingWeight = 120.0;
+	double controlWeight = 80;
+	double omegaWeight = 2;
 
 	auto horizons = std::make_tuple(v, f);
 	auto weights = std::make_tuple(controlWeight, omegaWeight, trackingWeight);
@@ -42,20 +42,25 @@ int main()
 	MatrixXd desiredTrajectory = getTrajectory(timeSteps, sampling);
 	MPC mpc(C, horizons, weights, x0, desiredTrajectory, sampling, u_min, u_max);
 
-	MatrixXd P0 = MatrixXd::Identity(3,3)*0.01;
-    MatrixXd Q  = MatrixXd::Identity(3,3)*0.01;
-    MatrixXd R  = MatrixXd::Identity(3,3)*0.05;
+	MatrixXd P0 = MatrixXd::Identity(3,3)*0.001;
+    MatrixXd Q  = MatrixXd::Identity(3,3)*0.001;
+    MatrixXd R  = MatrixXd::Identity(3,3)*0.8;
 	EKF ekf(C, x0, P0, Q, R, sampling);
 
 	VectorXd x_current = x0;
 	VectorXd x_true    = x0;
 	int simSteps = timeSteps - f - 1;
-
 	MatrixXd log_states(3, simSteps);
 	MatrixXd log_inputs(3, simSteps);
 
+	double alpha   = 0.5; // weight on new input (0.7 = mostly new, less filtering)
+	VectorXd u_prev = VectorXd::Zero(3);
+
 	for(int i = 0; i < simSteps; i++){
-		VectorXd u = mpc.computeControlInputs(x_current);
+		VectorXd u_raw = mpc.computeControlInputs(x_current);
+		VectorXd u = alpha * u_raw + (1.0 - alpha) * u_prev;
+		u_prev = u;
+
 		x_true = ekf.dynamics(x_true, u);
 		VectorXd z = ekf.noisyMeasurement(x_true);
 		ekf.predict(u);
@@ -64,6 +69,7 @@ int main()
 		log_states.col(i) = x_current;
 		log_inputs.col(i) = u;
 	}
+
 	// Data logs 
 	writeToCSV("data/states.csv", log_states);
 	writeToCSV("data/computedInputs.csv", log_inputs);
