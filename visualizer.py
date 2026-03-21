@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 # ── Load
 states     = np.loadtxt("data/states.csv",         delimiter=",")
 inputs     = np.loadtxt("data/computedInputs.csv", delimiter=",")
-outputs    = np.loadtxt("data/outputs.csv",         delimiter=",")
 trajectory = np.loadtxt("data/trajectory.csv",      delimiter=",")
 
-# ── Normalize all to (3, N) — state dims as rows, time as cols
+# ── Normalize states and inputs to (3, N)
 def to_3xN(mat, n_dims=3):
     if mat.ndim == 1:
         mat = mat.reshape(1, -1)
@@ -15,21 +14,24 @@ def to_3xN(mat, n_dims=3):
         mat = mat.T
     return mat
 
-states     = to_3xN(states,     n_dims=3)
-outputs    = to_3xN(outputs,    n_dims=3)
-inputs     = to_3xN(inputs,     n_dims=3)
+states = to_3xN(states, n_dims=3)
+inputs = to_3xN(inputs, n_dims=3)
 
-# trajectory saved as (N, 3) — keep as is, access via trajectory[:,col]
+# trajectory is (N, 3) — rows are timesteps, cols are x, y, theta
 if trajectory.ndim == 1:
     trajectory = trajectory.reshape(-1, 1)
 if trajectory.shape[1] != 3:
     trajectory = trajectory.T
 
+# trim trajectory to match states length
+N = states.shape[1]
+trajectory = trajectory[:N, :]
+
 # ── Plot 1: XY Trajectory
 plt.figure(figsize=(6,6))
 plt.plot(trajectory[:,0], trajectory[:,1], 'r--', linewidth=2, label='Reference')
-plt.plot(outputs[0,:],    outputs[1,:],    'b-',  linewidth=2, label='Robot')
-plt.scatter(outputs[0,0], outputs[1,0], color='green', s=100, zorder=5, label='Start')
+plt.plot(states[0,:],     states[1,:],     'b-',  linewidth=2, label='EKF Estimated')
+plt.scatter(states[0,0],  states[1,0], color='green', s=100, zorder=5, label='Start')
 plt.xlabel('X [m]')
 plt.ylabel('Y [m]')
 plt.title('XY Trajectory')
@@ -40,7 +42,7 @@ plt.grid(True)
 # ── Plot 2: Heading
 plt.figure(figsize=(8,4))
 plt.plot(np.degrees(trajectory[:,2]), 'r--', linewidth=2, label='theta ref')
-plt.plot(np.degrees(outputs[2,:]),    'b-',  linewidth=2, label='theta actual')
+plt.plot(np.degrees(states[2,:]),     'b-',  linewidth=2, label='theta estimated')
 plt.xlabel('Timestep')
 plt.ylabel('Heading [deg]')
 plt.title('Heading')

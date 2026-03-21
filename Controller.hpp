@@ -15,12 +15,10 @@ class MPC{
 		double sampling; // dt
 
 	    MatrixXd C; // system matrices
-        MatrixXd W3,W4;   // weighting matrices
-	    MatrixXd x0;      // initial state
+        MatrixXd W3,W4; // weighting matrices
         MatrixXd desiredInput; // total desired trajectory
-        unsigned int f,v; // f- prediction horizon, v - control horizon
+        unsigned int f,v; // f-> prediction horizon, v -> control horizon
 
-        MatrixXd states;
         MatrixXd inputs;
         MatrixXd outputs;
 
@@ -39,7 +37,6 @@ class MPC{
 		bool solver_initialized = false;
 
 		void initCasADiSolver();
-		VectorXd nonlinearDynamics(const VectorXd& x, const VectorXd& u) const;
 		std::tuple<MatrixXd, MatrixXd> linearizeModel(const VectorXd& x_bar,const VectorXd& u_bar) const;
 		void setObservabilityMatrix(const MatrixXd& A_k);
 		void setToeplitzMatrix(const MatrixXd& A_k, const MatrixXd& B_k);
@@ -57,7 +54,7 @@ class MPC{
 			VectorXd _u_min,
 			VectorXd _u_max);
 
-        void computeControlInputs();
+        VectorXd computeControlInputs(VectorXd x_k);
         void saveData(std::string _desiredInput, std::string inputFile, 
 							std::string stateFile, std::string outputFile,std::string OFile, std::string MFile) const;
 };

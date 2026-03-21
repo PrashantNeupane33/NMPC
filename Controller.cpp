@@ -2,7 +2,6 @@
 #include<string>
 #include<fstream>
 #include<tuple>
-#include<cmath>
 #include<Eigen/Dense>
 #include <casadi/casadi.hpp>
 #include "Controller.hpp"
@@ -21,7 +20,6 @@ MPC::MPC(MatrixXd _C,
          VectorXd _u_max):
     C(_C),
     f(get<1>(horizons)), v(get<0>(horizons)),
-    x0(_initialState),
     desiredInput(_desiredTrajectory),
     sampling(_sampling),
     u_min(_u_min),
@@ -33,10 +31,6 @@ MPC::MPC(MatrixXd _C,
     r = C.rows();
 
     unsigned int maxSimulationSamples = desiredInput.rows() - f;
-
-    states.resize(n, maxSimulationSamples);
-    states.setZero();
-    states.col(0) = x0;
 
     inputs.resize(m, maxSimulationSamples - 1);
     inputs.setZero();
@@ -171,63 +165,63 @@ void MPC::initCasADiSolver()
 	solver_initialized = true;
 }
 
-void MPC::setObservabilityMatrix(const MatrixXd& A_k)
-{
-    O.resize(f*r, n);
-    O.setZero();
-
-    MatrixXd _temp = MatrixXd::Identity(n, n);
-    for (int i = 0; i < f; i++)
-    {
-        _temp = _temp * A_k;
-        O(seq(i*r, (i+1)*r-1), all) = C * _temp;
-    }
-}
-
-void MPC::setToeplitzMatrix(const MatrixXd& A_k, const MatrixXd& B_k)
-{
-    M.resize(f*r, v*m);
-    M.setZero();
-    MatrixXd _temp;
-
-    for (int i = 0; i < f; i++)
-    {
-        if (i < v)
-        {
-            for (int j = 0; j < i+1; j++)
-            {
-                if (j == 0)
-                    _temp = MatrixXd::Identity(n, n);
-                else
-                    _temp = _temp * A_k;
-
-                M(seq(i*r,(i+1)*r-1), seq((i-j)*m,(i-j+1)*m-1)) = C * _temp * B_k;
-            }
-        }
-        else
-        {
-            for (int j = 0; j < v; j++)
-            {
-                if (j == 0)
-                {
-                    MatrixXd sumLast = MatrixXd::Zero(n, n);
-                    _temp = MatrixXd::Identity(n, n);
-                    for (int s = 0; s <= i; s++)
-                    {
-                        sumLast = sumLast + _temp;
-                        _temp = _temp * A_k;
-                    }
-                    M(seq(i*r,(i+1)*r-1), seq((v-1)*m, v*m-1)) = C * sumLast * B_k;
-                }
-                else
-                {
-                    _temp = _temp * A_k;
-                    M(seq(i*r,(i+1)*r-1), seq((v-1-j)*m,(v-j)*m-1)) = C * _temp * B_k;
-                }
-            }
-        }
-    }
-}
+// void MPC::setObservabilityMatrix(const MatrixXd& A_k)
+// {
+//     O.resize(f*r, n);
+//     O.setZero();
+//
+//     MatrixXd _temp = MatrixXd::Identity(n, n);
+//     for (int i = 0; i < f; i++)
+//     {
+//         _temp = _temp * A_k;
+//         O(seq(i*r, (i+1)*r-1), all) = C * _temp;
+//     }
+// }
+//
+// void MPC::setToeplitzMatrix(const MatrixXd& A_k, const MatrixXd& B_k)
+// {
+//     M.resize(f*r, v*m);
+//     M.setZero();
+//     MatrixXd _temp;
+//
+//     for (int i = 0; i < f; i++)
+//     {
+//         if (i < v)
+//         {
+//             for (int j = 0; j < i+1; j++)
+//             {
+//                 if (j == 0)
+//                     _temp = MatrixXd::Identity(n, n);
+//                 else
+//                     _temp = _temp * A_k;
+//
+//                 M(seq(i*r,(i+1)*r-1), seq((i-j)*m,(i-j+1)*m-1)) = C * _temp * B_k;
+//             }
+//         }
+//         else
+//         {
+//             for (int j = 0; j < v; j++)
+//             {
+//                 if (j == 0)
+//                 {
+//                     MatrixXd sumLast = MatrixXd::Zero(n, n);
+//                     _temp = MatrixXd::Identity(n, n);
+//                     for (int s = 0; s <= i; s++)
+//                     {
+//                         sumLast = sumLast + _temp;
+//                         _temp = _temp * A_k;
+//                     }
+//                     M(seq(i*r,(i+1)*r-1), seq((v-1)*m, v*m-1)) = C * sumLast * B_k;
+//                 }
+//                 else
+//                 {
+//                     _temp = _temp * A_k;
+//                     M(seq(i*r,(i+1)*r-1), seq((v-1-j)*m,(v-j)*m-1)) = C * _temp * B_k;
+//                 }
+//             }
+//         }
+//     }
+// }
 
 std::tuple<MatrixXd,MatrixXd> MPC::getWeightMatrices(tuple<double, double, double> weights)
 {
@@ -240,7 +234,7 @@ std::tuple<MatrixXd,MatrixXd> MPC::getWeightMatrices(tuple<double, double, doubl
             wt1(seq(i*m,(i+1)*m-1), seq((i-1)*m,i*m-1)) = -MatrixXd::Identity(m, m);
     }
 
-    // wt2: control rate weight — full m x m blocks on diagonal
+    // wt2: control rate weight
     MatrixXd wt2 = MatrixXd::Zero(v*m, v*m);
     wt2(seq(0, m-1), seq(0, m-1)) = get<0>(weights) * MatrixXd::Identity(m, m);
     for (int i = 1; i < v; i++)
@@ -248,7 +242,7 @@ std::tuple<MatrixXd,MatrixXd> MPC::getWeightMatrices(tuple<double, double, doubl
 
     MatrixXd W3 = wt1.transpose() * wt2 * wt1;
 
-    // W4: tracking weight — full r x r blocks on diagonal
+    // W4: tracking weight
     MatrixXd W4 = MatrixXd::Zero(f*r, f*r);
     for (int i = 0; i < f; i++)
         W4(seq(i*r,(i+1)*r-1), seq(i*r,(i+1)*r-1)) = get<2>(weights) * MatrixXd::Identity(r, r);
@@ -256,51 +250,31 @@ std::tuple<MatrixXd,MatrixXd> MPC::getWeightMatrices(tuple<double, double, doubl
     return std::make_tuple(W3, W4);
 }
 
-VectorXd MPC::nonlinearDynamics(const VectorXd& x, const VectorXd& u) const
+// std::tuple<MatrixXd,MatrixXd> MPC::linearizeModel(const VectorXd& x_bar, const VectorXd& u_bar) const
+// {
+//     double eps = 1e-5;
+//     MatrixXd A_lin(n, n), B_lin(n, m);
+//     VectorXd f0 = nonlinearDynamics(x_bar, u_bar);
+//
+//     for (int i = 0; i < n; i++) {
+//         VectorXd x_pert = x_bar;
+//         x_pert(i) += eps;
+//         A_lin.col(i) = (nonlinearDynamics(x_pert, u_bar) - f0) / eps;
+//     }
+//
+//     for (int i = 0; i < m; i++) {
+//         VectorXd u_pert = u_bar;
+//         u_pert(i) += eps;
+//         B_lin.col(i) = (nonlinearDynamics(x_bar, u_pert) - f0) / eps;
+//     }
+//
+//     return {A_lin, B_lin};
+// }
+
+VectorXd MPC::computeControlInputs(VectorXd x_k)
 {
-    double theta = x(2);
-    VectorXd x_dot(n);
-    x_dot(0) = u(0)*cos(theta) - u(1)*sin(theta);
-    x_dot(1) = u(0)*sin(theta) + u(1)*cos(theta);
-    x_dot(2) = u(2);
-    return x + sampling * x_dot;
-}
-
-std::tuple<MatrixXd,MatrixXd> MPC::linearizeModel(const VectorXd& x_bar, const VectorXd& u_bar) const
-{
-    double eps = 1e-5;
-    MatrixXd A_lin(n, n), B_lin(n, m);
-    VectorXd f0 = nonlinearDynamics(x_bar, u_bar);
-
-    for (int i = 0; i < n; i++) {
-        VectorXd x_pert = x_bar;
-        x_pert(i) += eps;
-        A_lin.col(i) = (nonlinearDynamics(x_pert, u_bar) - f0) / eps;
-    }
-
-    for (int i = 0; i < m; i++) {
-        VectorXd u_pert = u_bar;
-        u_pert(i) += eps;
-        B_lin.col(i) = (nonlinearDynamics(x_bar, u_pert) - f0) / eps;
-    }
-
-    return {A_lin, B_lin};
-}
-
-void MPC::computeControlInputs()
-{
-	if(!solver_initialized) {
-		std::cerr << "SOLVER NOT INITIALIZED" << std::endl;
-		return;
-	}
-
-	VectorXd x_k = states.col(k);
-
-	// Sync theta convention with reference
-	double ref_theta_k = desiredInput(k, 2);
-	while(x_k(2) - ref_theta_k >  M_PI) x_k(2) -= 2*M_PI;
-	while(x_k(2) - ref_theta_k < -M_PI) x_k(2) += 2*M_PI;
-	states(2, k) = x_k(2);
+	while(x_k(2) >  M_PI) x_k(2) -= 2*M_PI;
+	while(x_k(2) < -M_PI) x_k(2) += 2*M_PI;
 
 	MatrixXd refWindow = desiredInput(seq(k, k+f), all);
 
@@ -308,8 +282,12 @@ void MPC::computeControlInputs()
 	for(int i = 0; i < n; i++)
 		p_val.push_back(x_k(i));
 	for(int i = 0; i <= f; i++)
-		for(int j = 0; j < n; j++)
-			p_val.push_back(refWindow(i,j));
+		for(int j = 0; j < n; j++){
+			double val = refWindow(i, j);
+			if(j == 2)
+				val = atan2(sin(val), cos(val));
+			p_val.push_back(val);
+		}
 
 	std::vector<double> lbw, ubw, w0;
 	for(int k_h = 0; k_h < f; k_h++)
@@ -336,12 +314,12 @@ void MPC::computeControlInputs()
 	std::vector<double> ubg(n_constraints, 0.0);
 
 	casadi::DMDict args = {
-		{"x0",  casadi::DM(w0)},
+		{"x0", casadi::DM(w0)},
 		{"lbx", casadi::DM(lbw)},
 		{"ubx", casadi::DM(ubw)},
 		{"lbg", casadi::DM(lbg)},
 		{"ubg", casadi::DM(ubg)},
-		{"p",   casadi::DM(p_val)}
+		{"p", casadi::DM(p_val)}
 	};
 
 	casadi::DMDict sol  = casadi_solver(args);
@@ -352,35 +330,9 @@ void MPC::computeControlInputs()
 		u_apply(i) = w_opt[n + i];
 
 	inputs.col(k) = u_apply;
-	u_prev        = u_apply;
-
-	states.col(k+1) = nonlinearDynamics(x_k, u_apply);
-
-	double ref_next = desiredInput(std::min(k+1, (unsigned int)desiredInput.rows()-1), 2);
-	while(states(2,k+1) - ref_next >  M_PI) states(2,k+1) -= 2*M_PI;
-	while(states(2,k+1) - ref_next < -M_PI) states(2,k+1) += 2*M_PI;
-
-	outputs.col(k) = C * states.col(k);
+	u_prev = u_apply;
 	k++;
+
+	return u_apply;
 }
 
-void MPC::writeToCSV(const std::string& filename, const MatrixXd& matrix) const {
-    const static IOFormat CSVFormat(FullPrecision, DontAlignCols, ", ", "\n");
-    ofstream file(filename);
-    if (file.is_open())
-        file << matrix.format(CSVFormat);
-    else
-        cerr << "Error: Could not open " << filename << endl;
-}
-
-void MPC::saveData(string desiredInput_File, string input_File,
-                   string state_File, string output_File,
-                   string O_File, string M_File) const
-{
-    writeToCSV(desiredInput_File, desiredInput);
-    writeToCSV(input_File,  inputs);
-    writeToCSV(state_File,  states);
-    writeToCSV(output_File, outputs);
-    writeToCSV(O_File, O);
-    writeToCSV(M_File, M);
-}
