@@ -54,9 +54,9 @@ MatrixXd EKF::jacobianH() const
     return C;
 }
 
-VectorXd EKF::noisyMeasurement(const VectorXd& x, const VectorXd& u)
+VectorXd EKF::noisyMeasurement(const VectorXd& x)
 {
-    VectorXd z = dynamics(x, u);
+    VectorXd z = x;
     z(0) += xy_noise(gen);
     z(1) += xy_noise(gen);
     z(2) += th_noise(gen);

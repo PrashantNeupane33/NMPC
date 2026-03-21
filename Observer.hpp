@@ -43,6 +43,6 @@ class EKF {
         VectorXd dynamics(const VectorXd& x, const VectorXd& u) const;
         void predict(const VectorXd& u); // Prediction step
         VectorXd update(const VectorXd& z);// Update step
-		VectorXd noisyMeasurement(const VectorXd& x, const VectorXd& u);
+		VectorXd noisyMeasurement(const VectorXd& x);
 };
 #endif

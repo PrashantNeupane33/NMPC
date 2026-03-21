@@ -9,7 +9,7 @@ using Eigen::placeholders::all;
 
 MPC::MPC(MatrixXd _C,
          std::tuple<unsigned int, unsigned int> horizons,
-         std::tuple<double, double, double> weights,
+         std::tuple<double, double, double> _weights,
          VectorXd _initialState,
          MatrixXd _desiredTrajectory,
          double _sampling,
@@ -17,6 +17,7 @@ MPC::MPC(MatrixXd _C,
          VectorXd _u_max):
     C(_C),
     f(get<1>(horizons)), v(get<0>(horizons)),
+	weights(_weights),
     desiredInput(_desiredTrajectory),
     sampling(_sampling),
     u_min(_u_min),
@@ -37,10 +38,6 @@ MPC::MPC(MatrixXd _C,
 
     u_prev = VectorXd::Zero(m);
 
-    auto wm = getWeightMatrices(weights);
-    W3 = get<0>(wm);
-    W4 = get<1>(wm);
-
 	initCasADiSolver();
 }
 
@@ -51,7 +48,6 @@ void MPC::initCasADiSolver()
 
 	// System Dynamics
 	casadi::MX theta = x_sym(2);
-
 	std::vector<casadi::MX> xdot_vec = {
 		u_sym(0)*casadi::MX::cos(theta) - u_sym(1)*casadi::MX::sin(theta),
 		u_sym(0)*casadi::MX::sin(theta) + u_sym(1)*casadi::MX::cos(theta),
@@ -67,18 +63,18 @@ void MPC::initCasADiSolver()
 
 	// Weight Matrices
 	casadi::MX Q_cas = casadi::MX::zeros((int)n, (int)n);
-	Q_cas(0,0) = 500.0;
-	Q_cas(1,1) = 500.0;
+	Q_cas(0,0) = get<2>(weights);
+	Q_cas(1,1) = get<2>(weights);
 	Q_cas(2,2) = 1.0;
 
 	casadi::MX R_cas = casadi::MX::zeros((int)m, (int)m);
-	R_cas(0,0) = 0.1;
-	R_cas(1,1) = 0.1;
-	R_cas(2,2) = 0.05;
+	R_cas(0,0) = get<0>(weights);
+	R_cas(1,1) = get<0>(weights);
+	R_cas(2,2) = get<1>(weights);
 
 	casadi::MX P_cas = casadi::MX::zeros((int)n, (int)n);
-	P_cas(0,0) = 1000.0;
-	P_cas(1,1) = 1000.0;
+	P_cas(0,0) = get<2>(weights) * 2.0;
+	P_cas(1,1) = get<2>(weights) * 2.0;
 	P_cas(2,2) = 2.0;
 
 	// Initial condition constraint: x_0 = x_current
@@ -102,8 +98,8 @@ void MPC::initCasADiSolver()
 		int x_idx = k * ((int)n + (int)m);
 		int u_idx = x_idx + (int)n;
 
-		casadi::MX Xk  = W(casadi::Slice(x_idx, x_idx + (int)n));
-		casadi::MX Uk  = W(casadi::Slice(u_idx, u_idx + (int)m));
+		casadi::MX Xk  = W(casadi::Slice(x_idx,              x_idx + (int)n));
+		casadi::MX Uk  = W(casadi::Slice(u_idx,              u_idx + (int)m));
 		casadi::MX Xk1 = W(casadi::Slice(x_idx + (int)(n+m), x_idx + (int)(n+m) + (int)n));
 
 		casadi::MX x_ref = P_param(casadi::Slice((int)n + k*(int)n, (int)n + (k+1)*(int)n));
@@ -117,8 +113,8 @@ void MPC::initCasADiSolver()
 		};
 		casadi::MX err_wrapped = casadi::MX::vertcat(ew_vec);
 
-		J += casadi::MX::mtimes({err_wrapped.T(), Q_cas, err_wrapped})
-		   + casadi::MX::mtimes({Uk.T(), R_cas, Uk});
+		J += casadi::MX::mtimes(std::vector<casadi::MX>{err_wrapped.T(), Q_cas, err_wrapped})
+		   + casadi::MX::mtimes(std::vector<casadi::MX>{Uk.T(), R_cas, Uk});
 
 		std::vector<casadi::MX> f_args = {Xk, Uk};
 		casadi::MX x_pred = casadi_f(f_args)[0];
@@ -142,7 +138,7 @@ void MPC::initCasADiSolver()
 	};
 	casadi::MX err_N_w = casadi::MX::vertcat(en_vec);
 
-	J += casadi::MX::mtimes({err_N_w.T(), P_cas, err_N_w});
+	J += casadi::MX::mtimes(std::vector<casadi::MX>{err_N_w.T(), P_cas, err_N_w});
 
 	// Assemble and compile NLP
 	casadi::MXDict nlp = {
@@ -162,32 +158,32 @@ void MPC::initCasADiSolver()
 	solver_initialized = true;
 }
 
-std::tuple<MatrixXd,MatrixXd> MPC::getWeightMatrices(tuple<double, double, double> weights)
-{
-    // wt1: finite difference matrix for control smoothness
-    MatrixXd wt1 = MatrixXd::Zero(v*m, v*m);
-    for (int i = 0; i < v; i++)
-    {
-        wt1(seq(i*m,(i+1)*m-1), seq(i*m,(i+1)*m-1)) = MatrixXd::Identity(m, m);
-        if (i > 0)
-            wt1(seq(i*m,(i+1)*m-1), seq((i-1)*m,i*m-1)) = -MatrixXd::Identity(m, m);
-    }
-
-    // wt2: control rate weight
-    MatrixXd wt2 = MatrixXd::Zero(v*m, v*m);
-    wt2(seq(0, m-1), seq(0, m-1)) = get<0>(weights) * MatrixXd::Identity(m, m);
-    for (int i = 1; i < v; i++)
-        wt2(seq(i*m,(i+1)*m-1), seq(i*m,(i+1)*m-1)) = get<1>(weights) * MatrixXd::Identity(m, m);
-
-    MatrixXd W3 = wt1.transpose() * wt2 * wt1;
-
-    // W4: tracking weight
-    MatrixXd W4 = MatrixXd::Zero(f*r, f*r);
-    for (int i = 0; i < f; i++)
-        W4(seq(i*r,(i+1)*r-1), seq(i*r,(i+1)*r-1)) = get<2>(weights) * MatrixXd::Identity(r, r);
-
-    return std::make_tuple(W3, W4);
-}
+// std::tuple<MatrixXd,MatrixXd> MPC::getWeightMatrices(tuple<double, double, double> weights)
+// {
+//     // wt1: finite difference matrix for control smoothness
+//     MatrixXd wt1 = MatrixXd::Zero(v*m, v*m);
+//     for (int i = 0; i < v; i++)
+//     {
+//         wt1(seq(i*m,(i+1)*m-1), seq(i*m,(i+1)*m-1)) = MatrixXd::Identity(m, m);
+//         if (i > 0)
+//             wt1(seq(i*m,(i+1)*m-1), seq((i-1)*m,i*m-1)) = -MatrixXd::Identity(m, m);
+//     }
+//
+//     // wt2: control rate weight
+//     MatrixXd wt2 = MatrixXd::Zero(v*m, v*m);
+//     wt2(seq(0, m-1), seq(0, m-1)) = get<0>(weights) * MatrixXd::Identity(m, m);
+//     for (int i = 1; i < v; i++)
+//         wt2(seq(i*m,(i+1)*m-1), seq(i*m,(i+1)*m-1)) = get<1>(weights) * MatrixXd::Identity(m, m);
+//
+//     MatrixXd W3 = wt1.transpose() * wt2 * wt1;
+//
+//     // W4: tracking weight
+//     MatrixXd W4 = MatrixXd::Zero(f*r, f*r);
+//     for (int i = 0; i < f; i++)
+//         W4(seq(i*r,(i+1)*r-1), seq(i*r,(i+1)*r-1)) = get<2>(weights) * MatrixXd::Identity(r, r);
+//
+//     return std::make_tuple(W3, W4);
+// }
 
 VectorXd MPC::computeControlInputs(VectorXd x_k)
 {

@@ -15,7 +15,7 @@ class MPC{
 		double sampling; // dt
 
 	    MatrixXd C; // system matrices
-        MatrixXd W3,W4; // weighting matrices
+		std::tuple<double, double, double> weights; //(Q0,Qother,predWeight)
         MatrixXd desiredInput; // total desired trajectory
         unsigned int f,v; // f-> prediction horizon, v -> control horizon
 
@@ -55,7 +55,5 @@ class MPC{
 			VectorXd _u_max);
 
         VectorXd computeControlInputs(VectorXd x_k);
-        void saveData(std::string _desiredInput, std::string inputFile, 
-							std::string stateFile, std::string outputFile,std::string OFile, std::string MFile) const;
 };
 #endif
