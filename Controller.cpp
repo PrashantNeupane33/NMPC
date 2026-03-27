@@ -9,7 +9,7 @@ using Eigen::placeholders::all;
 
 MPC::MPC(MatrixXd _C,
          std::tuple<unsigned int, unsigned int> horizons,
-         std::tuple<double, double, double> _weights,
+         std::tuple<double, double, double, double> _weights,
          VectorXd _initialState,
          MatrixXd _desiredTrajectory,
          double _sampling,
@@ -59,7 +59,10 @@ void MPC::initCasADiSolver()
 
 	// Decision variable and parameter vector
 	casadi::MX W       = casadi::MX::sym("W", (int)((n+m)*f + n));
-	casadi::MX P_param = casadi::MX::sym("P", (int)(n + (f+1)*n));
+	casadi::MX P_param = casadi::MX::sym("P", (int)(n + (f+1)*n + m));
+
+	// Extract u_prev from end of P_param
+	casadi::MX u_prev_p = P_param(casadi::Slice((int)(n + (f+1)*n), (int)(n + (f+1)*n + m)));
 
 	// Weight Matrices
 	casadi::MX Q_cas = casadi::MX::zeros((int)n, (int)n);
@@ -76,6 +79,11 @@ void MPC::initCasADiSolver()
 	P_cas(0,0) = get<2>(weights) * 2.0;
 	P_cas(1,1) = get<2>(weights) * 2.0;
 	P_cas(2,2) = 2.0;
+
+	casadi::MX S_cas = casadi::MX::zeros((int)m, (int)m);
+	S_cas(0,0) = get<3>(weights);
+	S_cas(1,1) = get<3>(weights);
+	S_cas(2,2) = get<3>(weights);
 
 	// Initial condition constraint: x_0 = x_current
 	casadi::MX x0_p = P_param(casadi::Slice(0, (int)n));
@@ -98,14 +106,13 @@ void MPC::initCasADiSolver()
 		int x_idx = k * ((int)n + (int)m);
 		int u_idx = x_idx + (int)n;
 
-		casadi::MX Xk  = W(casadi::Slice(x_idx,              x_idx + (int)n));
-		casadi::MX Uk  = W(casadi::Slice(u_idx,              u_idx + (int)m));
-		casadi::MX Xk1 = W(casadi::Slice(x_idx + (int)(n+m), x_idx + (int)(n+m) + (int)n));
+		casadi::MX Xk  = W(casadi::Slice(x_idx,               x_idx + (int)n));
+		casadi::MX Uk  = W(casadi::Slice(u_idx,               u_idx + (int)m));
+		casadi::MX Xk1 = W(casadi::Slice(x_idx + (int)(n+m),  x_idx + (int)(n+m) + (int)n));
 
 		casadi::MX x_ref = P_param(casadi::Slice((int)n + k*(int)n, (int)n + (k+1)*(int)n));
 
 		casadi::MX err = Xk - x_ref;
-
 		std::vector<casadi::MX> ew_vec = {
 			err(0),
 			err(1),
@@ -113,8 +120,15 @@ void MPC::initCasADiSolver()
 		};
 		casadi::MX err_wrapped = casadi::MX::vertcat(ew_vec);
 
+		// Delta-u penalty
+		casadi::MX U_prev = (k == 0) ? u_prev_p
+		                              : W(casadi::Slice((k-1)*((int)n+(int)m) + (int)n,
+		                                               (k-1)*((int)n+(int)m) + (int)n + (int)m));
+		casadi::MX delta_u = Uk - U_prev;
+
 		J += casadi::MX::mtimes(std::vector<casadi::MX>{err_wrapped.T(), Q_cas, err_wrapped})
-		   + casadi::MX::mtimes(std::vector<casadi::MX>{Uk.T(), R_cas, Uk});
+		   + casadi::MX::mtimes(std::vector<casadi::MX>{Uk.T(), R_cas, Uk})
+		   + casadi::MX::mtimes(std::vector<casadi::MX>{delta_u.T(), S_cas, delta_u});
 
 		std::vector<casadi::MX> f_args = {Xk, Uk};
 		casadi::MX x_pred = casadi_f(f_args)[0];
@@ -202,6 +216,9 @@ VectorXd MPC::computeControlInputs(VectorXd x_k)
 				val = atan2(sin(val), cos(val));
 			p_val.push_back(val);
 		}
+	
+	for(int i = 0; i < m; i++)
+    p_val.push_back(u_prev(i));
 
 	std::vector<double> lbw, ubw, w0;
 	for(int k_h = 0; k_h < f; k_h++)

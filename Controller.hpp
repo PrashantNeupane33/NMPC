@@ -15,7 +15,7 @@ class MPC{
 		double sampling; // dt
 
 	    MatrixXd C; // system matrices
-		std::tuple<double, double, double> weights; //(Q0,Qother,predWeight)
+		std::tuple<double, double, double, double> weights; //(Q0,Qother,predWeight,rateWeight)
         MatrixXd desiredInput; // total desired trajectory
         unsigned int f,v; // f-> prediction horizon, v -> control horizon
 
@@ -47,7 +47,7 @@ class MPC{
     public:
 		MPC(MatrixXd _C,
 			std::tuple<unsigned int, unsigned int> horizons,
-			std::tuple<double, double, double> weights,
+			std::tuple<double, double, double, double> weights,
 			VectorXd _initialState,
 			MatrixXd _desiredTrajectory,
 			double _sampling,

@@ -31,12 +31,13 @@ int main()
 	u_min << -1.2, -1.2, -3.0;
 	u_max <<  1.2,  1.2,  3.0;
 
-	double trackingWeight = 120.0;
-	double controlWeight = 80;
+	double trackingWeight = 150.0;
+	double controlWeight = 50;
 	double omegaWeight = 2;
+	double rateWeight = 800.0;
 
 	auto horizons = std::make_tuple(v, f);
-	auto weights = std::make_tuple(controlWeight, omegaWeight, trackingWeight);
+	auto weights = std::make_tuple(controlWeight, omegaWeight, trackingWeight, rateWeight);
 
 	unsigned int timeSteps = 500 + f + 10;
 	MatrixXd desiredTrajectory = getTrajectory(timeSteps, sampling);
@@ -53,7 +54,7 @@ int main()
 	MatrixXd log_states(3, simSteps);
 	MatrixXd log_inputs(3, simSteps);
 
-	double alpha   = 0.5; // weight on new input (0.7 = mostly new, less filtering)
+	double alpha   = 1.0; // weight on new input (0.7 = mostly new, less filtering)
 	VectorXd u_prev = VectorXd::Zero(3);
 
 	for(int i = 0; i < simSteps; i++){
