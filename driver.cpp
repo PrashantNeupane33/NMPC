@@ -32,9 +32,9 @@ int main()
 	u_max <<  1.2,  1.2,  3.0;
 
 	double trackingWeight = 150.0;
-	double controlWeight = 50;
+	double controlWeight = 10;
 	double omegaWeight = 2;
-	double rateWeight = 800.0;
+	double rateWeight = 8.0;
 
 	auto horizons = std::make_tuple(v, f);
 	auto weights = std::make_tuple(controlWeight, omegaWeight, trackingWeight, rateWeight);
