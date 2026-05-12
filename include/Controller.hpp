@@ -48,12 +48,11 @@ class MPC{
 		MPC(MatrixXd _C,
 			std::tuple<unsigned int, unsigned int> horizons,
 			std::tuple<double, double, double, double> weights,
-			VectorXd _initialState,
-			MatrixXd _desiredTrajectory,
 			double _sampling,
 			VectorXd _u_min,
 			VectorXd _u_max);
 
         VectorXd computeControlInputs(VectorXd x_k);
+		void setTrajectory(MatrixXd trajectory);
 };
 #endif

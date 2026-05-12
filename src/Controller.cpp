@@ -1,4 +1,3 @@
-#include<tuple>
 #include<Eigen/Dense>
 #include <casadi/casadi.hpp>
 #include "Controller.hpp"
@@ -10,15 +9,12 @@ using Eigen::placeholders::all;
 MPC::MPC(MatrixXd _C,
          std::tuple<unsigned int, unsigned int> horizons,
          std::tuple<double, double, double, double> _weights,
-         VectorXd _initialState,
-         MatrixXd _desiredTrajectory,
          double _sampling,
          VectorXd _u_min,
          VectorXd _u_max):
     C(_C),
     f(get<1>(horizons)), v(get<0>(horizons)),
 	weights(_weights),
-    desiredInput(_desiredTrajectory),
     sampling(_sampling),
     u_min(_u_min),
     u_max(_u_max),
@@ -30,10 +26,10 @@ MPC::MPC(MatrixXd _C,
 
     unsigned int maxSimulationSamples = desiredInput.rows() - f;
 
-    inputs.resize(m, maxSimulationSamples - 1);
+    inputs.resize(m, maxSimulationSamples);
     inputs.setZero();
 
-    outputs.resize(r, maxSimulationSamples - 1);
+    outputs.resize(r, maxSimulationSamples);
     outputs.setZero();
 
     u_prev = VectorXd::Zero(m);
@@ -41,30 +37,30 @@ MPC::MPC(MatrixXd _C,
 	initCasADiSolver();
 }
 
+void MPC::setTrajectory(MatrixXd trajectory){
+	this->desiredInput=trajectory;
+}
+
 void MPC::initCasADiSolver()
 {
 	casadi::MX x_sym = casadi::MX::sym("x", (int)n);
 	casadi::MX u_sym = casadi::MX::sym("u", (int)m);
 
-	// System Dynamics
 	casadi::MX theta = x_sym(2);
 	std::vector<casadi::MX> xdot_vec = {
-		u_sym(0)*casadi::MX::cos(theta) - u_sym(1)*casadi::MX::sin(theta),
-		u_sym(0)*casadi::MX::sin(theta) + u_sym(1)*casadi::MX::cos(theta),
-		u_sym(2)
+		u_sym(0) * casadi::MX::cos(theta),
+		u_sym(0) * casadi::MX::sin(theta),
+		u_sym(1)
 	};
 	casadi::MX x_dot  = casadi::MX::vertcat(xdot_vec);
 	casadi::MX x_next = x_sym + sampling * x_dot;
 	casadi_f = casadi::Function("f", {x_sym, u_sym}, {x_next});
 
-	// Decision variable and parameter vector
 	casadi::MX W       = casadi::MX::sym("W", (int)((n+m)*f + n));
 	casadi::MX P_param = casadi::MX::sym("P", (int)(n + (f+1)*n + m));
 
-	// Extract u_prev from end of P_param
 	casadi::MX u_prev_p = P_param(casadi::Slice((int)(n + (f+1)*n), (int)(n + (f+1)*n + m)));
 
-	// Weight Matrices
 	casadi::MX Q_cas = casadi::MX::zeros((int)n, (int)n);
 	Q_cas(0,0) = get<2>(weights);
 	Q_cas(1,1) = get<2>(weights);
@@ -72,8 +68,7 @@ void MPC::initCasADiSolver()
 
 	casadi::MX R_cas = casadi::MX::zeros((int)m, (int)m);
 	R_cas(0,0) = get<0>(weights);
-	R_cas(1,1) = get<0>(weights);
-	R_cas(2,2) = get<1>(weights);
+	R_cas(1,1) = get<1>(weights);
 
 	casadi::MX P_cas = casadi::MX::zeros((int)n, (int)n);
 	P_cas(0,0) = get<2>(weights) * 2.0;
@@ -83,9 +78,7 @@ void MPC::initCasADiSolver()
 	casadi::MX S_cas = casadi::MX::zeros((int)m, (int)m);
 	S_cas(0,0) = get<3>(weights);
 	S_cas(1,1) = get<3>(weights);
-	S_cas(2,2) = get<3>(weights);
 
-	// Initial condition constraint: x_0 = x_current
 	casadi::MX x0_p = P_param(casadi::Slice(0, (int)n));
 	casadi::MX X_k  = W(casadi::Slice(0, (int)n));
 
@@ -98,7 +91,6 @@ void MPC::initCasADiSolver()
 		ubg.push_back(0.0);
 	}
 
-	// Horizon Loop
 	casadi::MX J = 0;
 
 	for(int k = 0; k < (int)f; k++)
@@ -106,9 +98,9 @@ void MPC::initCasADiSolver()
 		int x_idx = k * ((int)n + (int)m);
 		int u_idx = x_idx + (int)n;
 
-		casadi::MX Xk  = W(casadi::Slice(x_idx,               x_idx + (int)n));
-		casadi::MX Uk  = W(casadi::Slice(u_idx,               u_idx + (int)m));
-		casadi::MX Xk1 = W(casadi::Slice(x_idx + (int)(n+m),  x_idx + (int)(n+m) + (int)n));
+		casadi::MX Xk  = W(casadi::Slice(x_idx,              x_idx + (int)n));
+		casadi::MX Uk  = W(casadi::Slice(u_idx,              u_idx + (int)m));
+		casadi::MX Xk1 = W(casadi::Slice(x_idx + (int)(n+m), x_idx + (int)(n+m) + (int)n));
 
 		casadi::MX x_ref = P_param(casadi::Slice((int)n + k*(int)n, (int)n + (k+1)*(int)n));
 
@@ -120,7 +112,6 @@ void MPC::initCasADiSolver()
 		};
 		casadi::MX err_wrapped = casadi::MX::vertcat(ew_vec);
 
-		// Delta-u penalty
 		casadi::MX U_prev = (k == 0) ? u_prev_p
 		                              : W(casadi::Slice((k-1)*((int)n+(int)m) + (int)n,
 		                                               (k-1)*((int)n+(int)m) + (int)n + (int)m));
@@ -140,7 +131,6 @@ void MPC::initCasADiSolver()
 		}
 	}
 
-	// Terminal Cost
 	casadi::MX x_ref_N = P_param(casadi::Slice((int)n + (int)f*(int)n, (int)n + ((int)f+1)*(int)n));
 	casadi::MX X_N     = W(casadi::Slice((int)f*((int)n+(int)m), (int)f*((int)n+(int)m) + (int)n));
 	casadi::MX err_N   = X_N - x_ref_N;
@@ -154,7 +144,6 @@ void MPC::initCasADiSolver()
 
 	J += casadi::MX::mtimes(std::vector<casadi::MX>{err_N_w.T(), P_cas, err_N_w});
 
-	// Assemble and compile NLP
 	casadi::MXDict nlp = {
 		{"x", W},
 		{"f", J},
