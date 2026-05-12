@@ -29,6 +29,10 @@ MPC::MPC(MatrixXd _C,
 	initCasADiSolver();
 }
 
+void MPC::resetTimestamp() {
+		this->k = 0;
+}
+
 void MPC::setTrajectory(MatrixXd trajectory){
 	this->desiredInput=trajectory;
 }

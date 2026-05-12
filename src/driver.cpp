@@ -86,11 +86,25 @@ int main() {
 
   // Grid
   std::vector<std::vector<int>> grid = {
-      {0, 1, 1, 0, 0}, {0, 1, 1, 1, 0}, {0, 0, 1, 1, 0}, {0, 1, 1, 1, 0},
-      {0, 1, 1, 1, 0}, {0, 0, 0, 1, 0}, {0, 1, 0, 0, 0}, {0, 0, 0, 0, 0},
-      {0, 1, 0, 0, 0}, {0, 0, 1, 1, 0}, {0, 1, 0, 1, 0}, {0, 0, 0, 1, 0},
-      {0, 1, 0, 1, 0}, {0, 0, 1, 1, 0}, {0, 1, 0, 1, 0}, {0, 1, 0, 0, 0},
-      {0, 0, 0, 1, 0}, {0, 0, 0, 1, 0}, {0, 1, 0, 1, 0}};
+      {0, 1, 1, 0, 0}, 
+			{0, 1, 1, 1, 0}, 
+			{0, 0, 1, 1, 0}, 
+			{0, 1, 1, 1, 0},
+      {0, 1, 1, 1, 0}, 
+			{0, 0, 0, 1, 0}, 
+			{0, 1, 0, 0, 0}, 
+			{0, 0, 0, 0, 0},
+      {0, 1, 0, 0, 0}, 
+			{0, 0, 1, 1, 0}, 
+			{0, 1, 0, 1, 0}, 
+			{0, 0, 0, 1, 0},
+      {0, 1, 0, 1, 0}, 
+			{0, 0, 1, 1, 0}, 
+			{0, 1, 0, 1, 0}, 
+			{0, 1, 0, 0, 0},
+      {0, 0, 0, 1, 0}, 
+			{0, 0, 0, 1, 0}, 
+			{0, 1, 0, 1, 0}};
 
 
   double trackingWeight = 150.0;
@@ -136,7 +150,10 @@ int main() {
 		// std::cout << "simSteps:   " << simSteps << std::endl;
 		// std::cout << "f + simSteps: " << f + simSteps << std::endl;
 
-		assert(!rawPath.empty());
+		if(rawPath.empty()){
+			std::cerr<<"No path found!"<<std::endl;
+			continue;
+		}
 		auto desiredTrajectory = getTrajectory(rawPath, simSteps + f);
 		mpc.setTrajectory(desiredTrajectory);
 			for (int i = 0; i < simSteps; i++) {
@@ -166,6 +183,8 @@ int main() {
 			sendto(serverSocket, reply.c_str(), reply.size(), 0,
 				   (sockaddr *)&clientAddr, clientLen);
 		}
+		printf("current pose: %f, %f, %f\n", x_current(0), x_current(1), x_current(2));
+		mpc.resetTimestamp();
 }
 
   // writeToCSV("data/states.csv", log_states);
