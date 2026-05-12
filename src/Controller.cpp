@@ -24,14 +24,6 @@ MPC::MPC(MatrixXd _C,
     m = _u_min.size();
     r = C.rows();
 
-    unsigned int maxSimulationSamples = desiredInput.rows() - f;
-
-    inputs.resize(m, maxSimulationSamples);
-    inputs.setZero();
-
-    outputs.resize(r, maxSimulationSamples);
-    outputs.setZero();
-
     u_prev = VectorXd::Zero(m);
 
 	initCasADiSolver();
@@ -249,7 +241,6 @@ VectorXd MPC::computeControlInputs(VectorXd x_k)
 	for(int i = 0; i < m; i++)
 		u_apply(i) = w_opt[n + i];
 
-	inputs.col(k) = u_apply;
 	u_prev = u_apply;
 	k++;
 
