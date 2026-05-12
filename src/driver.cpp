@@ -72,7 +72,7 @@ int main() {
   unsigned int v = 14;
 
   double sampling = 0.05;
-  double cellSize = 0.25;
+  double cellSize = 0.05;
   double speed = 0.3;
 
   MatrixXd C = MatrixXd::Identity(3, 3);
@@ -138,8 +138,8 @@ int main() {
 		std::cout<<"Goal pose:"<<std::endl;
 		std::cin>>goal_pose[0]>>goal_pose[1];
 
-		Node start(x_current[0],x_current[1]);
-		Node goal(goal_pose[0],goal_pose[1]);
+		Node start((int)x_current[0]/cellSize,(int)x_current[1]/cellSize);
+		Node goal((int)goal_pose[0]/cellSize,(int)goal_pose[1]/cellSize);
 
 		auto rawPath = FindPath(grid, start, goal);
 		double pathLength = (rawPath.size() - 1) * cellSize;
@@ -154,7 +154,7 @@ int main() {
 			std::cerr<<"No path found!"<<std::endl;
 			continue;
 		}
-		auto desiredTrajectory = getTrajectory(rawPath, simSteps + f);
+		auto desiredTrajectory = getTrajectory(rawPath, simSteps + f,cellSize);
 		mpc.setTrajectory(desiredTrajectory);
 			for (int i = 0; i < simSteps; i++) {
 

@@ -114,7 +114,7 @@ std::vector<Node> FindPath(const std::vector<std::vector<int>>& graph, const Nod
 }
 
 // Intepolated path, vector-> Matrix
-MatrixXd getTrajectory(const std::vector<Node>& path, int timeSteps){
+MatrixXd getTrajectory(const std::vector<Node>& path, int timeSteps, float cellSize){
     MatrixXd desiredTrajectory(timeSteps, 3);
     for(int i = 0; i < timeSteps; i++){
         double t    = (double)i / (timeSteps - 1) * (path.size() - 1);
@@ -122,8 +122,8 @@ MatrixXd getTrajectory(const std::vector<Node>& path, int timeSteps){
         double frac = t - idx;
         int    idx1 = std::min(idx + 1, (int)path.size() - 1);
 
-        desiredTrajectory(i, 0) = path[idx].x + frac * (path[idx1].x - path[idx].x);
-        desiredTrajectory(i, 1) = path[idx].y + frac * (path[idx1].y - path[idx].y);
+        desiredTrajectory(i, 0) = (path[idx].x + frac * (path[idx1].x - path[idx].x))*cellSize;
+        desiredTrajectory(i, 1) = (path[idx].y + frac * (path[idx1].y - path[idx].y))*cellSize;
         if(i < timeSteps - 1)
             desiredTrajectory(i, 2) = atan2(path[idx1].y - path[idx].y,
                                             path[idx1].x - path[idx].x);
