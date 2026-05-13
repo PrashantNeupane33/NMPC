@@ -4,6 +4,7 @@
 #include "network.hpp"
 #include <Eigen/Dense>
 #include <arpa/inet.h>
+#include <casadi/core/calculus.hpp>
 #include <casadi/core/integrator.hpp>
 #include <cstring>
 #include <iostream>
@@ -33,19 +34,31 @@ int main() {
   }
 
   // Server address
-  sockaddr_in serverAddr{};
-  serverAddr.sin_family = AF_INET;
-  serverAddr.sin_addr.s_addr = INADDR_ANY;
-  serverAddr.sin_port = htons(8080);
-
-  // Bind socket
-  if (bind(serverSocket, (sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-
-    std::cerr << "Bind failed\n";
-    close(serverSocket);
-    return 1;
-  }
-  char buffer[1024];
+  // sockaddr_in serverAddr{};
+  // serverAddr.sin_family = AF_INET;
+  // serverAddr.sin_addr.s_addr = INADDR_ANY;
+  // serverAddr.sin_port = htons(8080);
+  //
+  // // Bind socket
+  // if (bind(serverSocket, (sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+  //
+  //   std::cerr << "Bind failed\n";
+  //   close(serverSocket);
+  //   return 1;
+  // }
+  // char buffer[1024];
+  // // Receive data
+  // int bytesReceived = recvfrom(serverSocket, buffer, sizeof(buffer) - 1, 0,
+  //                              (sockaddr *)&clientAddr, &clientLen);
+  //
+  // if (bytesReceived < 0) {
+  //   std::cerr << "Receive failed\n";
+  // }
+  //
+  // buffer[bytesReceived] = '\0';
+  //
+  // // Print received message
+  // std::cout << buffer << std::endl;
 
   sockaddr_in clientAddr{};
   socklen_t clientLen = sizeof(clientAddr);
@@ -53,19 +66,10 @@ int main() {
   pthread_t tcp_thread;
   pthread_create(&tcp_thread, NULL, tcp_client, NULL);
 
-  // Receive data
-  int bytesReceived = recvfrom(serverSocket, buffer, sizeof(buffer) - 1, 0,
-                               (sockaddr *)&clientAddr, &clientLen);
+  clientAddr.sin_family = AF_INET;
+  clientAddr.sin_port = htons(8080);
 
-  if (bytesReceived < 0) {
-    std::cerr << "Receive failed\n";
-  }
-
-  buffer[bytesReceived] = '\0';
-
-  // Print received message
-  std::cout << buffer << std::endl;
-
+  inet_pton(AF_INET, "10.220.135.87", &clientAddr.sin_addr);
 
   // Parameters
   unsigned int f = 20;
@@ -86,15 +90,15 @@ int main() {
 
   // Grid
   std::vector<std::vector<int>> grid = {
-	{0,0,1,1,1,0,0,0,0},
-	{0,0,1,0,1,0,0,0,0},
-	{0,0,1,0,1,0,0,0,0},
-	{0,0,1,1,1,0,0,0,0},
-	{0,0,1,0,1,0,0,0,0},
-	{0,0,0,0,0,0,0,0,0},
-	{0,0,0,0,0,0,0,0,0},
-	{0,0,0,0,0,0,0,0,0},
-	{0,0,0,0,0,0,0,0,0}};
+      {0, 0, 0, 0, 0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 0, 0, 0, 0, 0},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0}};
 
   double trackingWeight = 150.0;
   double controlWeight = 80.0;
@@ -111,76 +115,101 @@ int main() {
   // MatrixXd log_states(3, simSteps);
   // MatrixXd log_inputs(2, simSteps);
 
-  float goal_pose[2]={0.0,0.0};
+  float goal_pose[2] = {0.0, 0.0};
 
   double alpha = 1.0;
   VectorXd u_prev = VectorXd::Zero(2);
 
-	std::cout<<"Initial state:"<<std::endl;
-	std::cin>>x_current[0]>>x_current[1]>>x_current[2];
-	
+  std::cout << "Initial state:" << std::endl;
+  std::cin >> x_current[0] >> x_current[1] >> x_current[2];
 
-  MPC mpc(C, horizons, weights,sampling, u_min, u_max);
+  MPC mpc(C, horizons, weights, sampling, u_min, u_max);
 
-	while(true){
+  while (true) {
 
-		std::cout<<"Goal pose:"<<std::endl;
-		std::cin>>goal_pose[0]>>goal_pose[1];
+    std::cout << "Goal pose:" << std::endl;
+    std::cin >> goal_pose[0] >> goal_pose[1];
 
-		Node start((int)(x_current[0]/cellSize),(int)(x_current[1]/cellSize));
-		Node goal((int)(goal_pose[0]/cellSize),(int)(goal_pose[1]/cellSize));
-		std::cout<<"from"<<start.x<<","<<start.y<<std::endl;
-		std::cout<<"to"<<goal.x<<","<<goal.y<<std::endl;
+    Node start((int)(x_current[0] / cellSize), (int)(x_current[1] / cellSize));
+    Node goal((int)(goal_pose[0] / cellSize), (int)(goal_pose[1] / cellSize));
+    std::cout << "from" << start.x << "," << start.y << std::endl;
+    std::cout << "to" << goal.x << "," << goal.y << std::endl;
 
-		auto rawPath = FindPath(grid, start, goal);
-		double pathLength = (rawPath.size() - 1) * cellSize;
-		int simSteps = (int)(pathLength / speed / sampling);
+    auto rawPath = FindPath(grid, start, goal);
+    double pathLength = (rawPath.size() - 1) * cellSize;
+    int simSteps = (int)(pathLength / speed / sampling);
 
-		// std::cout << "Path size:  " << rawPath.size() << std::endl;
-		// std::cout << "f:          " << f << std::endl;
-		// std::cout << "simSteps:   " << simSteps << std::endl;
-		// std::cout << "f + simSteps: " << f + simSteps << std::endl;
+    // std::cout << "Path size:  " << rawPath.size() << std::endl;
+    // std::cout << "f:          " << f << std::endl;
+    // std::cout << "simSteps:   " << simSteps << std::endl;
+    // std::cout << "f + simSteps: " << f + simSteps << std::endl;
 
-		if(rawPath.empty()){
-			std::cerr<<"No path found!"<<std::endl;
-			continue;
-		}
-		auto desiredTrajectory = getTrajectory(rawPath, simSteps + f,cellSize, sampling);
+    if (rawPath.empty()) {
+      std::cerr << "No path found!" << std::endl;
+      continue;
+    }
+    auto desiredTrajectory =
+        getTrajectory(rawPath, simSteps + f, cellSize, sampling);
 
+    std::cout << "This is path" << std::endl;
+    // PrintPath(desiredTrajectory);
+    mpc.setTrajectory(desiredTrajectory);
+
+    int i = 0;
+    while (i < simSteps) {
+
+      int updated = shared_updated.load();
+      if (updated != 1) {
+        printf("no new data \t shared updated: %d \n", updated);
+        continue;
+      }
+      shared_updated.store(0);
+
+      recv_data data = shared_recv.load(std::memory_order_relaxed);
+      // std::cout << "Received -> x: " << data.x << "  y: " << data.y << " z:
+      // " << data.z
+      // << std::endl;
+
+      x_current(0) = data.x;
+      x_current(1) = data.y;
+      x_current(2) = data.z;
+
+      VectorXd u_raw = mpc.computeControlInputs(x_current);
+      VectorXd u = alpha * u_raw + (1.0 - alpha) * u_prev;
+      u_prev = u;
+
+      send_data s{};
+      s.vx = u[0]; // placeholder
+      s.w = u[1];  // placeholder
+      shared_send.store(s, std::memory_order_relaxed);
+
+      // std::cout << "Sending  -> vx: " << s.vx << "  w: " << s.w <<
+      // std::endl;
+      std::string reply =
+          std::to_string(u[0]) + "," + std::to_string(u[1]) + "\n";
+
+      // Send response
+      sendto(serverSocket, reply.c_str(), reply.size(), 0,
+             (sockaddr *)&clientAddr, clientLen);
+
+      printf("State: x: %f \t y: %f\t theta %f\n", data.x, data.y, data.z);
+      printf("Control: v: %f \t w: %f\n", s.vx, s.w);
+
+      i++;
+    }
+
+    std::string reply = "0.0,0.0";
+    sendto(serverSocket, reply.c_str(), reply.size(), 0,
+           (sockaddr *)&clientAddr, clientLen);
 		
-		std::cout<<"This is path"<<std::endl;
-		PrintPath(desiredTrajectory);
-		mpc.setTrajectory(desiredTrajectory);
-			for (int i = 0; i < simSteps; i++) {
+    shared_send.store({0.0,0.0}, std::memory_order_relaxed);
 
-			recv_data data = shared_recv.load(std::memory_order_relaxed);
-			// std::cout << "Received -> x: " << data.x << "  y: " << data.y << "  z: " << data.z
-					  // << std::endl;
+    printf("current pose: %f, %f, %f\n", x_current(0), x_current(1),
+           x_current(2));
+    mpc.resetTimestamp();
+  }
 
-			x_current(0) = data.x;
-			x_current(1) = data.y;
-			x_current(2) = data.z;
-
-			VectorXd u_raw = mpc.computeControlInputs(x_current);
-			VectorXd u = alpha * u_raw + (1.0 - alpha) * u_prev;
-			u_prev = u;
-
-			send_data s{};
-			s.vx = u[0]; // placeholder
-			s.w = u[1];  // placeholder
-			shared_send.store(s, std::memory_order_relaxed);
-
-			// std::cout << "Sending  -> vx: " << s.vx << "  w: " << s.w << std::endl;
-			std::string reply =
-				std::to_string(u[0]) + "," + std::to_string(u[1]) + "\n";
-
-			// Send response
-			sendto(serverSocket, reply.c_str(), reply.size(), 0,
-				   (sockaddr *)&clientAddr, clientLen);
-		}
-		printf("current pose: %f, %f, %f\n", x_current(0), x_current(1), x_current(2));
-		mpc.resetTimestamp();
-}
+  // Send response
 
   // writeToCSV("data/states.csv", log_states);
   // writeToCSV("data/computedInputs.csv", log_inputs);

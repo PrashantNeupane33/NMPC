@@ -115,7 +115,6 @@ std::vector<Node> FindPath(const std::vector<std::vector<int>>& graph, const Nod
 }
 
 
-Intepolated path, vector-> Matrix
 MatrixXd getTrajectory(const std::vector<Node>& path, int timeSteps, float cellSize,float sampling){
 	std::vector<BezierSegment> segments = nodesToBezierSegments(path, cellSize);
     return getBezierTrajectory(timeSteps, sampling, segments);
