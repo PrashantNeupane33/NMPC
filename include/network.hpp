@@ -31,7 +31,7 @@ static void *tcp_client(void *arg) {
   sockaddr_in serverAddr{};
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(8080);
-  inet_pton(AF_INET, "10.100.61.34", &serverAddr.sin_addr);
+  inet_pton(AF_INET, "192.168.121.185", &serverAddr.sin_addr);
 
 reconnect:
   while (connect(sock, (sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {

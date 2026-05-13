@@ -1,4 +1,5 @@
 #include "Pathfinder.hpp"
+#include "Bezier.hpp"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
@@ -113,24 +114,28 @@ std::vector<Node> FindPath(const std::vector<std::vector<int>>& graph, const Nod
     return {};// No path found 
 }
 
-// Intepolated path, vector-> Matrix
-MatrixXd getTrajectory(const std::vector<Node>& path, int timeSteps, float cellSize){
-    MatrixXd desiredTrajectory(timeSteps, 3);
-    for(int i = 0; i < timeSteps; i++){
-        double t    = (double)i / (timeSteps - 1) * (path.size() - 1);
-        int    idx  = (int)t;
-        double frac = t - idx;
-        int    idx1 = std::min(idx + 1, (int)path.size() - 1);
 
-        desiredTrajectory(i, 0) = (path[idx].x + frac * (path[idx1].x - path[idx].x))*cellSize;
-        desiredTrajectory(i, 1) = (path[idx].y + frac * (path[idx1].y - path[idx].y))*cellSize;
-        if(i < timeSteps - 1)
-            desiredTrajectory(i, 2) = atan2(path[idx1].y - path[idx].y,
-                                            path[idx1].x - path[idx].x);
-        else
-            desiredTrajectory(i, 2) = desiredTrajectory(i-1, 2);
+Intepolated path, vector-> Matrix
+MatrixXd getTrajectory(const std::vector<Node>& path, int timeSteps, float cellSize,float sampling){
+	std::vector<BezierSegment> segments = nodesToBezierSegments(path, cellSize);
+    return getBezierTrajectory(timeSteps, sampling, segments);
+}
+
+//Fit higher order Bezier curve
+// MatrixXd getTrajectory(const std::vector<Node>& path, int timeSteps, float cellSize, float sampling)
+// {
+//     // Auto-computes smooth control points — no manual input needed
+//     std::vector<BezierSegment> segments = computeSmoothBezierSpline(path, cellSize);
+//     return getBezierTrajectory(timeSteps, sampling, segments);
+// }
+
+void PrintPath(const MatrixXd& path)
+{
+    for (int i = 0; i < path.rows(); ++i)
+    {
+        std::cout << "(" << path(i, 0) << ", " << path(i, 1) << ", " << path(i, 2) << ")\n";
     }
-    return desiredTrajectory;
+    std::cout << std::endl;
 }
 
 void PrintPath(const std::vector<Node>& path)

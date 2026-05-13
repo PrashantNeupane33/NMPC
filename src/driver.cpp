@@ -72,7 +72,7 @@ int main() {
   unsigned int v = 14;
 
   double sampling = 0.05;
-  double cellSize = 0.05;
+  double cellSize = 0.25;
   double speed = 0.3;
 
   MatrixXd C = MatrixXd::Identity(3, 3);
@@ -86,26 +86,15 @@ int main() {
 
   // Grid
   std::vector<std::vector<int>> grid = {
-      {0, 1, 1, 0, 0}, 
-			{0, 1, 1, 1, 0}, 
-			{0, 0, 1, 1, 0}, 
-			{0, 1, 1, 1, 0},
-      {0, 1, 1, 1, 0}, 
-			{0, 0, 0, 1, 0}, 
-			{0, 1, 0, 0, 0}, 
-			{0, 0, 0, 0, 0},
-      {0, 1, 0, 0, 0}, 
-			{0, 0, 1, 1, 0}, 
-			{0, 1, 0, 1, 0}, 
-			{0, 0, 0, 1, 0},
-      {0, 1, 0, 1, 0}, 
-			{0, 0, 1, 1, 0}, 
-			{0, 1, 0, 1, 0}, 
-			{0, 1, 0, 0, 0},
-      {0, 0, 0, 1, 0}, 
-			{0, 0, 0, 1, 0}, 
-			{0, 1, 0, 1, 0}};
-
+	{0,0,1,1,1,0,0,0,0},
+	{0,0,1,0,1,0,0,0,0},
+	{0,0,1,0,1,0,0,0,0},
+	{0,0,1,1,1,0,0,0,0},
+	{0,0,1,0,1,0,0,0,0},
+	{0,0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,0}};
 
   double trackingWeight = 150.0;
   double controlWeight = 80.0;
@@ -138,8 +127,10 @@ int main() {
 		std::cout<<"Goal pose:"<<std::endl;
 		std::cin>>goal_pose[0]>>goal_pose[1];
 
-		Node start((int)x_current[0]/cellSize,(int)x_current[1]/cellSize);
-		Node goal((int)goal_pose[0]/cellSize,(int)goal_pose[1]/cellSize);
+		Node start((int)(x_current[0]/cellSize),(int)(x_current[1]/cellSize));
+		Node goal((int)(goal_pose[0]/cellSize),(int)(goal_pose[1]/cellSize));
+		std::cout<<"from"<<start.x<<","<<start.y<<std::endl;
+		std::cout<<"to"<<goal.x<<","<<goal.y<<std::endl;
 
 		auto rawPath = FindPath(grid, start, goal);
 		double pathLength = (rawPath.size() - 1) * cellSize;
@@ -154,13 +145,17 @@ int main() {
 			std::cerr<<"No path found!"<<std::endl;
 			continue;
 		}
-		auto desiredTrajectory = getTrajectory(rawPath, simSteps + f,cellSize);
+		auto desiredTrajectory = getTrajectory(rawPath, simSteps + f,cellSize, sampling);
+
+		
+		std::cout<<"This is path"<<std::endl;
+		PrintPath(desiredTrajectory);
 		mpc.setTrajectory(desiredTrajectory);
 			for (int i = 0; i < simSteps; i++) {
 
 			recv_data data = shared_recv.load(std::memory_order_relaxed);
-			std::cout << "Received -> x: " << data.x << "  y: " << data.y << "  z: " << data.z
-					  << std::endl;
+			// std::cout << "Received -> x: " << data.x << "  y: " << data.y << "  z: " << data.z
+					  // << std::endl;
 
 			x_current(0) = data.x;
 			x_current(1) = data.y;
@@ -175,7 +170,7 @@ int main() {
 			s.w = u[1];  // placeholder
 			shared_send.store(s, std::memory_order_relaxed);
 
-			std::cout << "Sending  -> vx: " << s.vx << "  w: " << s.w << std::endl;
+			// std::cout << "Sending  -> vx: " << s.vx << "  w: " << s.w << std::endl;
 			std::string reply =
 				std::to_string(u[0]) + "," + std::to_string(u[1]) + "\n";
 
